@@ -17,6 +17,8 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -24,54 +26,79 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.lang.String.format;
 import static org.springframework.web.reactive.function.server.RequestPredicates.*;
 import static org.springframework.web.reactive.function.server.RouterFunctions.nest;
 import static org.springframework.web.reactive.function.server.RouterFunctions.route;
+import static org.springframework.web.reactive.function.server.ServerResponse.created;
 import static org.springframework.web.reactive.function.server.ServerResponse.ok;
 
 @SpringBootApplication
 public class UserRoleServiceApplication {
 
-	public static void main(String[] args) {
+    public static final String LOCATION_API_USER = "http://localhost:8080/api/user";
+    public static final String LOCATION_API_ROLE = "http://localhost:8080/api/role";
+
+    public static void main(String[] args) {
 		SpringApplication.run(UserRoleServiceApplication.class, args);
 	}
 
     @Bean
     RouterFunction<?> routes(RoleService roleService, UserService userService) {
         return nest(path("/api/user"),
-                route(method(HttpMethod.GET),
-                        request -> ok().body(userService.findAll(), User.class))
-                        .andRoute(GET("/{id}"),
-                                request -> userService.findById(request.pathVariable("id"))
-                                        .flatMap(u -> ok().body(Mono.just(u), User.class))
-                                        .switchIfEmpty(ServerResponse.notFound().build()))
+                route(GET("/{id}"),
+                        request -> userService.findById(request.pathVariable("id"))
+                                .flatMap(u -> ok().body(Mono.just(u), User.class))
+                                .switchIfEmpty(ServerResponse.notFound().build()))
+                        .andRoute(method(HttpMethod.GET),
+                                request -> ok().body(userService.findAll(), User.class))
                         .andRoute(method(HttpMethod.POST).and(contentType(MediaType.APPLICATION_JSON)),
                                 request -> userService.addNewUser(request.bodyToMono(User.class))
-                                        .flatMap(user -> ok().body(Mono.just(user), User.class))
+                                        .flatMap(user -> created(location(user)).body(Mono.just(user), User.class))
                                         .switchIfEmpty(ServerResponse.notFound().build()))
                         .andRoute(PUT("/{id}").and(contentType(MediaType.APPLICATION_JSON)),
                                 request -> userService.updateUser(request.bodyToMono(User.class))
                                         .flatMap(u -> ok().body(Mono.just(u), User.class))
                                         .switchIfEmpty(ServerResponse.notFound().build()))
-                        .andNest(path("/api/role"),
-                                route(method(HttpMethod.GET),
+                        .andRoute(DELETE("/{id}"),
+                                request -> userService.deleteById(request.pathVariable("id"))
+                                .flatMap(user -> ok().body(Mono.just(user), User.class))
+                                .switchIfEmpty(ok().build())
+                        ))
+                .andNest(path("/api/role"),
+                        route(GET("/{id}"),
+                                request -> roleService.findById(request.pathVariable("id"))
+                                        .flatMap(role -> ok().body(Mono.just(role), Role.class))
+                                        .switchIfEmpty(ServerResponse.notFound().build()))
+                                .andRoute(method(HttpMethod.GET),
                                         request -> ok().body(roleService.findAll(), Role.class))
-                                        .andRoute(GET("/{id}"),
-                                                request -> roleService.findById(request.pathVariable("id"))
-                                                        .flatMap(role -> ok().body(Mono.just(role), Role.class))
-                                                        .switchIfEmpty(ServerResponse.notFound().build()))
-                                        .andRoute(method(HttpMethod.POST).and(accept(MediaType.APPLICATION_JSON)),
-                                                request -> roleService.addNewRole(request.bodyToMono(Role.class))
-                                                        .flatMap(role -> ok().body(Mono.just(role), Role.class))
-                                                        .switchIfEmpty(ServerResponse.badRequest().build()))
-                                        .andRoute(DELETE("/{id}"),
-                                                request -> roleService.deleteById(request.pathVariable("id"))
-                                                        .flatMap(role -> ok().body(Mono.just(role), Role.class))
-                                                        .switchIfEmpty(ok().build()))
-                                        .andRoute(PUT("/{id}").and(contentType(MediaType.APPLICATION_JSON)),
-                                                request -> roleService.updateRole(request.bodyToMono(Role.class))
-                                                        .flatMap(role -> ok().body(Mono.just(role), Role.class))
-                                                        .switchIfEmpty(ServerResponse.notFound().build()))));
+                                .andRoute(method(HttpMethod.POST).and(accept(MediaType.APPLICATION_JSON)),
+                                        request -> roleService.addNewRole(request.bodyToMono(Role.class))
+                                                .flatMap(role -> created(location(role)).body(Mono.just(role), Role.class))
+                                                .switchIfEmpty(ServerResponse.badRequest().build()))
+                                .andRoute(DELETE("/{id}"),
+                                        request -> roleService.deleteById(request.pathVariable("id"))
+                                                .flatMap(role -> ok().body(Mono.just(role), Role.class))
+                                                .switchIfEmpty(ok().build()))
+                                .andRoute(PUT("/{id}").and(contentType(MediaType.APPLICATION_JSON)),
+                                        request -> roleService.updateRole(request.bodyToMono(Role.class))
+                                                .flatMap(role -> ok().body(Mono.just(role), Role.class))
+                                                .switchIfEmpty(ServerResponse.notFound().build())));
+    }
+
+    private URI location(User user) {
+        try {
+            return new URI(format("%s/%s", LOCATION_API_USER, user.getUserId()));
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("Can't create location for user:" + user, e);
+        }
+    }
+    private URI location(Role role) {
+        try {
+            return new URI(format("%s/%s", LOCATION_API_ROLE, role.getId()));
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException("Can't create location for role:" + role, e);
+        }
     }
 
     @Bean
@@ -81,13 +108,13 @@ public class UserRoleServiceApplication {
             userRepository
                     .deleteAll()
                     .subscribe(null, null,
-                            () -> Stream.of("R1,R2,R3".split(","))
-                                    .map(r -> new Role(UUID.randomUUID().toString(), r, "En beskrivning av " + r))
+                            () -> Stream.of("R1:1-1-1-1-1,R2:1-1-1-1-2,R3:1-1-1-1-3".split(","))
+                                    .map(this::createRole)
                                     .forEach(role -> roleRepository.save(role).subscribe(System.out::println)));
             roleRepository
                     .deleteAll()
                     .subscribe(null, null,
-                            () -> Stream.of("user1:Karl Benknäckare,user2:Britta Andehaag,user3:Walter Iskugel".split(","))
+                            () -> Stream.of("user1:Karl Benknäckare:1-1-1-1-1,user2:Britta Andehaag,user3:Walter Iskugel".split(","))
                                     .map(this::createUser)
                                     .forEach(user -> userRepository.save(user).subscribe(System.out::println))
                     );
@@ -96,9 +123,25 @@ public class UserRoleServiceApplication {
 
     User createUser(String s) {
         String[] ss = s.split(":");
+
+        ArrayList<Role> roles = new ArrayList<>();
+        if (ss.length > 2) {
+            roles.add(Role.builder().id(ss[2]).build());
+        }
+
         return User.builder()
                 .userId(ss[0])
                 .name(ss[1])
+                .roles(roles)
+                .build();
+    }
+
+    Role createRole(String s) {
+        String[] ss = s.split(":");
+        return Role.builder()
+                .rolename(ss[0])
+                .id(ss[1])
+                .description("Beskrivning av roll " + ss[0])
                 .build();
     }
 
@@ -191,19 +234,18 @@ interface RoleRepository extends ReactiveMongoRepository<Role, String>{}
 @AllArgsConstructor
 @NoArgsConstructor
 @ToString
-@Builder
+@Builder(toBuilder = true)
 @Data
 class User {
 	@Id
 	private String userId;
     private String name;
     @DBRef
-	private List<Role> roles = new ArrayList<>();
+	@Builder.Default
+    private List<Role> roles = new ArrayList<>();
 
     public User copy() {
-        return User.builder()
-                .userId(userId)
-                .name(name)
+        return this.toBuilder()
                 .roles(roles.stream().filter(Objects::nonNull).map(Role::copy).collect(Collectors.toList()))
                 .build();
     }
@@ -213,7 +255,7 @@ class User {
 @AllArgsConstructor
 @NoArgsConstructor
 @ToString
-@Builder
+@Builder(toBuilder = true)
 @Data
 class Role {
 	@Id
@@ -222,10 +264,6 @@ class Role {
 	private String description;
 
     public Role copy() {
-        return Role.builder()
-                .description(description)
-                .rolename(rolename)
-                .id(id)
-                .build();
+        return this.toBuilder().build();
     }
 }
