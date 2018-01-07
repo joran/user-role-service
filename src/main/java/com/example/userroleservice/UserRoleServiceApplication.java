@@ -12,8 +12,12 @@ import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.reactive.CorsWebFilter;
+import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
+import org.springframework.web.util.pattern.PathPatternParser;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -100,7 +104,20 @@ public class UserRoleServiceApplication {
             throw new IllegalStateException("Can't create location for role:" + role, e);
         }
     }
+    @Bean
+    CorsWebFilter corsFilter() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.setAllowCredentials(true);
+        config.addAllowedOrigin("*");
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
 
+        PathPatternParser patternParser = new PathPatternParser();
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource(patternParser);
+        source.registerCorsConfiguration("/**", config);
+
+        return new CorsWebFilter(source);
+    }
     @Bean
 	CommandLineRunner demo(UserRepository userRepository, RoleRepository roleRepository) {
 
