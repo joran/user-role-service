@@ -1,6 +1,27 @@
 package com.example.userroleservice;
 
-import lombok.*;
+import static java.lang.String.format;
+import static org.springframework.web.reactive.function.server.RequestPredicates.DELETE;
+import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
+import static org.springframework.web.reactive.function.server.RequestPredicates.PUT;
+import static org.springframework.web.reactive.function.server.RequestPredicates.accept;
+import static org.springframework.web.reactive.function.server.RequestPredicates.contentType;
+import static org.springframework.web.reactive.function.server.RequestPredicates.method;
+import static org.springframework.web.reactive.function.server.RequestPredicates.path;
+import static org.springframework.web.reactive.function.server.RouterFunctions.nest;
+import static org.springframework.web.reactive.function.server.RouterFunctions.route;
+import static org.springframework.web.reactive.function.server.ServerResponse.created;
+import static org.springframework.web.reactive.function.server.ServerResponse.ok;
+
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -18,24 +39,14 @@ import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 import org.springframework.web.reactive.function.server.RouterFunction;
 import org.springframework.web.reactive.function.server.ServerResponse;
 import org.springframework.web.util.pattern.PathPatternParser;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
-import java.util.UUID;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.lang.String.format;
-import static org.springframework.web.reactive.function.server.RequestPredicates.*;
-import static org.springframework.web.reactive.function.server.RouterFunctions.nest;
-import static org.springframework.web.reactive.function.server.RouterFunctions.route;
-import static org.springframework.web.reactive.function.server.ServerResponse.created;
-import static org.springframework.web.reactive.function.server.ServerResponse.ok;
 
 @SpringBootApplication
 public class UserRoleServiceApplication {
@@ -50,44 +61,44 @@ public class UserRoleServiceApplication {
     @Bean
     RouterFunction<?> routes(RoleService roleService, UserService userService) {
         return nest(path("/api/user"),
-                route(GET("/{id}"),
-                        request -> userService.findById(request.pathVariable("id"))
+                    route(GET("/{id}"),
+                            request -> userService.findById(request.pathVariable("id"))
                                 .flatMap(u -> ok().body(Mono.just(u), User.class))
                                 .switchIfEmpty(ServerResponse.notFound().build()))
-                        .andRoute(method(HttpMethod.GET),
-                                request -> ok().body(userService.findAll(), User.class))
-                        .andRoute(method(HttpMethod.POST).and(contentType(MediaType.APPLICATION_JSON)),
-                                request -> userService.addNewUser(request.bodyToMono(User.class))
-                                        .flatMap(user -> created(location(user)).body(Mono.just(user), User.class))
-                                        .switchIfEmpty(ServerResponse.notFound().build()))
-                        .andRoute(PUT("/{id}").and(contentType(MediaType.APPLICATION_JSON)),
-                                request -> userService.updateUser(request.bodyToMono(User.class))
-                                        .flatMap(u -> ok().body(Mono.just(u), User.class))
-                                        .switchIfEmpty(ServerResponse.notFound().build()))
-                        .andRoute(DELETE("/{id}"),
-                                request -> userService.deleteById(request.pathVariable("id"))
-                                .flatMap(user -> ok().body(Mono.just(user), User.class))
-                                .switchIfEmpty(ok().build())
-                        ))
+                    .andRoute(method(HttpMethod.GET),
+                            request -> ok().body(userService.findAll(), User.class))
+                    .andRoute(method(HttpMethod.POST).and(contentType(MediaType.APPLICATION_JSON)),
+                            request -> userService.addNewUser(request.bodyToMono(User.class))
+                                    .flatMap(user -> created(location(user)).body(Mono.just(user), User.class))
+                                    .switchIfEmpty(ServerResponse.notFound().build()))
+                    .andRoute(PUT("/{id}").and(contentType(MediaType.APPLICATION_JSON)),
+                            request -> userService.updateUser(request.bodyToMono(User.class))
+                                    .flatMap(u -> ok().body(Mono.just(u), User.class))
+                                    .switchIfEmpty(ServerResponse.notFound().build()))
+                    .andRoute(DELETE("/{id}"),
+                            request -> userService.deleteById(request.pathVariable("id"))
+                            .flatMap(user -> ok().body(Mono.just(user), User.class))
+                            .switchIfEmpty(ok().build())
+                    ))
                 .andNest(path("/api/role"),
-                        route(GET("/{id}"),
-                                request -> roleService.findById(request.pathVariable("id"))
-                                        .flatMap(role -> ok().body(Mono.just(role), Role.class))
-                                        .switchIfEmpty(ServerResponse.notFound().build()))
-                                .andRoute(method(HttpMethod.GET),
-                                        request -> ok().body(roleService.findAll(), Role.class))
-                                .andRoute(method(HttpMethod.POST).and(accept(MediaType.APPLICATION_JSON)),
-                                        request -> roleService.addNewRole(request.bodyToMono(Role.class))
-                                                .flatMap(role -> created(location(role)).body(Mono.just(role), Role.class))
-                                                .switchIfEmpty(ServerResponse.badRequest().build()))
-                                .andRoute(DELETE("/{id}"),
-                                        request -> roleService.deleteById(request.pathVariable("id"))
-                                                .flatMap(role -> ok().body(Mono.just(role), Role.class))
-                                                .switchIfEmpty(ok().build()))
-                                .andRoute(PUT("/{id}").and(contentType(MediaType.APPLICATION_JSON)),
-                                        request -> roleService.updateRole(request.bodyToMono(Role.class))
-                                                .flatMap(role -> ok().body(Mono.just(role), Role.class))
-                                                .switchIfEmpty(ServerResponse.notFound().build())));
+                    route(GET("/{id}"),
+                            request -> roleService.findById(request.pathVariable("id"))
+                                    .flatMap(role -> ok().body(Mono.just(role), Role.class))
+                                    .switchIfEmpty(ServerResponse.notFound().build()))
+                    .andRoute(method(HttpMethod.GET),
+                            request -> ok().body(roleService.findAll(), Role.class))
+                    .andRoute(method(HttpMethod.POST).and(accept(MediaType.APPLICATION_JSON)),
+                            request -> roleService.addNewRole(request.bodyToMono(Role.class))
+                                    .flatMap(role -> created(location(role)).body(Mono.just(role), Role.class))
+                                    .switchIfEmpty(ServerResponse.badRequest().build()))
+                    .andRoute(DELETE("/{id}"),
+                            request -> roleService.deleteById(request.pathVariable("id"))
+                                    .flatMap(role -> ok().body(Mono.just(role), Role.class))
+                                    .switchIfEmpty(ok().build()))
+                    .andRoute(PUT("/{id}").and(contentType(MediaType.APPLICATION_JSON)),
+                            request -> roleService.updateRole(request.bodyToMono(Role.class))
+                                    .flatMap(role -> ok().body(Mono.just(role), Role.class))
+                                    .switchIfEmpty(ServerResponse.notFound().build())));
     }
 
     private URI location(User user) {
